@@ -1,0 +1,62 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  BuildConfiguration: Debug
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  CI: 'true'
+
+steps:
+  - task: UseDotNet@2
+    displayName: Use .NET 8 SDK
+    inputs:
+      packageType: sdk
+      version: 8.0.x
+
+  - script: dotnet restore AgenticTestFramework.sln
+    displayName: Restore
+
+  - script: dotnet build AgenticTestFramework.sln --configuration $(BuildConfiguration) --no-restore
+    displayName: Build
+
+  - pwsh: ./tests/UI.Tests/bin/$(BuildConfiguration)/net8.0/playwright.ps1 install --with-deps chromium
+    displayName: Install Playwright Chromium
+
+  - script: mkdir -p Evidence
+    displayName: Prepare evidence directory
+
+  - script: >
+      dotnet test AgenticTestFramework.sln
+      --configuration $(BuildConfiguration)
+      --no-build
+      --logger "trx;LogFilePrefix=results"
+      --results-directory "$(Agent.TempDirectory)/TestResults"
+    displayName: Test
+
+  - script: dotnet format AgenticTestFramework.sln --verify-no-changes --no-restore
+    displayName: Verify formatting
+
+  - task: PublishTestResults@2
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: '$(Agent.TempDirectory)/TestResults/**/*.trx'
+      failTaskOnFailedTests: true
+
+  - task: PublishPipelineArtifact@1
+    condition: always()
+    inputs:
+      targetPath: '$(Build.SourcesDirectory)/Evidence'
+      artifact: test-evidence

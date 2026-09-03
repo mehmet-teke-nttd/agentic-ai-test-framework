@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.vs/
+.vscode/
+TestResults/
+Evidence/
+playwright-report/
+*.trx
+*.feature.cs
+*.user
+*.suo
