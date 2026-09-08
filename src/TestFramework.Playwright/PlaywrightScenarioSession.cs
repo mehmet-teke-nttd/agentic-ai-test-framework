@@ -5,6 +5,8 @@ namespace TestFramework.Playwright;
 
 public sealed class PlaywrightScenarioSession : IAsyncDisposable
 {
+    public const string HeadlessEnvironmentVariableName = "TEST_UI_HEADLESS";
+
     private readonly IPlaywright _playwright;
     private readonly IBrowser _browser;
     private readonly IBrowserContext _context;
@@ -33,7 +35,10 @@ public sealed class PlaywrightScenarioSession : IAsyncDisposable
         try
         {
             playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = LoadHeadlessSetting()
+            });
             var context = await browser.NewContextAsync();
             await context.Tracing.StartAsync(new TracingStartOptions
             {
@@ -51,6 +56,31 @@ public sealed class PlaywrightScenarioSession : IAsyncDisposable
         }
     }
 
+    private static bool LoadHeadlessSetting()
+    {
+        var environmentValue = Environment.GetEnvironmentVariable(HeadlessEnvironmentVariableName);
+        if (bool.TryParse(environmentValue, out var envHeadless))
+        {
+            return envHeadless;
+        }
+
+        var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (!File.Exists(settingsPath))
+        {
+            return true;
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        if (document.RootElement.TryGetProperty("Browser", out var browser) &&
+            browser.TryGetProperty("Headless", out var headless) &&
+            headless.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return headless.GetBoolean();
+        }
+
+        return true;
+    }
+
     public async Task CaptureFailureAsync(string scenarioName)
     {
         var directory = Environment.GetEnvironmentVariable("TEST_EVIDENCE_DIR");
@@ -58,18 +88,25 @@ public sealed class PlaywrightScenarioSession : IAsyncDisposable
         Directory.CreateDirectory(directory);
         var safeName = string.Concat(scenarioName.Select(character =>
             Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
-        await Page.ScreenshotAsync(new PageScreenshotOptions
+        try
         {
-            Path = Path.Combine(directory, $"{safeName}.png"),
-            FullPage = true
-        });
-        await _context.Tracing.StopAsync(new TracingStopOptions
+            await Page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                Path = Path.Combine(directory, $"{safeName}.png"),
+                FullPage = true
+            });
+            await _context.Tracing.StopAsync(new TracingStopOptions
+            {
+                Path = Path.Combine(directory, $"{safeName}-trace.zip")
+            });
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, $"{safeName}-browser-console.json"),
+                JsonSerializer.Serialize(_consoleMessages, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (PlaywrightException)
         {
-            Path = Path.Combine(directory, $"{safeName}-trace.zip")
-        });
-        await File.WriteAllTextAsync(
-            Path.Combine(directory, $"{safeName}-browser-console.json"),
-            JsonSerializer.Serialize(_consoleMessages, new JsonSerializerOptions { WriteIndented = true }));
+            // Avoid masking the original test failure with evidence-capture errors.
+        }
     }
 
     public async ValueTask DisposeAsync()

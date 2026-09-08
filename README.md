@@ -1,6 +1,15 @@
 # Agentic AI Test Framework
 
-First usable release (P0-P3) of a .NET 8 test framework for controlled, agent-assisted testing. It combines NUnit, ReqnRoll, and Playwright behind a stable gateway. The release grants only **READ, RUN, ANALYZE, and RECOMMEND** capabilities.
+First usable release (P0-P3) + **LLM-powered failure analysis (P4)** of a .NET 8 test framework for controlled, agent-assisted testing. It combines NUnit, ReqnRoll, and Playwright behind a stable gateway. The release grants **READ, RUN, ANALYZE, and RECOMMEND** capabilities, now enhanced with AI-powered root cause analysis.
+
+## 🎯 Key Features
+
+- ✅ **Complete Test Pyramid**: UI, API, and Integration test layers
+- 🧠 **LLM-Powered Analysis**: AI-driven failure root cause identification
+- 📊 **Historical Tracking**: Automatic pattern detection and flaky test identification
+- 🔄 **Dual Analyzers**: Deterministic + LLM with comparative analysis
+- 🎯 **Actionable Insights**: Fix recommendations, not just classifications
+- 🌐 **Multi-Provider**: OpenAI, Azure OpenAI, Anthropic support
 
 ## Projects
 
@@ -9,10 +18,23 @@ First usable release (P0-P3) of a .NET 8 test framework for controlled, agent-as
 - `src/TestFramework.Playwright` — browser session and failure evidence capture.
 - `agent/Test.AgentGateway` — allowlisted execution, TRX normalization, evidence store, and deterministic analysis.
 - `agent/Test.AgentGateway.Cli` — narrow JSON-lines stdio agent tool host.
-- `tests/UI.Tests` — ReqnRoll + Playwright sample using a configurable application URL.
+- `tests/UI.Tests` — ReqnRoll + Playwright sample using a configurable application URL (Layer: UI).
+- `tests/API.Tests` — ReqnRoll + HttpClient for REST API testing (Layer: API).
+- `tests/Integration.Tests` — Database and service integration tests (Layer: Integration).
 - `tests/TestFramework.UnitTests` — discovery, validation, normalization, evidence, and analysis tests.
 
-See [architecture](docs/architecture.md), [security model](docs/security.md), and [agent protocol](docs/agent-protocol.md).
+See [architecture](docs/architecture.md), [security model](docs/security.md), [agent protocol](docs/agent-protocol.md), and [test layers guide](docs/test-layers-guide.md).
+
+## 📚 Documentation
+
+- **[Test Layers Guide](docs/test-layers-guide.md)** - Complete guide to UI/API/Integration testing
+- **[LLM Failure Analysis Guide](docs/llm-failure-analysis-guide.md)** - AI-powered failure analysis 🧠 NEW!
+- **[LLM Analysis Demo](docs/LLM_ANALYSIS_DEMO.md)** - Live examples and workflows
+- **[Agent Protocol](docs/agent-protocol.md)** - Tool reference and JSON-lines protocol
+- **[Architecture](docs/architecture.md)** - System design and dependency flow
+- **[Security Model](docs/security.md)** - Trust boundaries and controls
+- **[API/Integration Implementation](docs/IMPLEMENTATION_SUMMARY.md)** - Test pyramid details
+- **[LLM Implementation](docs/IMPLEMENTATION_SUMMARY_LLM.md)** - AI analysis details
 
 ## Prerequisites and verification
 
@@ -38,6 +60,58 @@ dotnet test tests/UI.Tests/UI.Tests.csproj --no-build
 ```
 
 The environment variable takes precedence over `appsettings.json`. Only absolute HTTP, HTTPS, and `data:` URLs are accepted. The sample greeting assertion expects the configured page to contain `#greeting` with text `Agentic test framework`; replace the sample scenario with application-specific steps when pointing at a real system.
+
+## API Test Configuration
+
+Set `Api.BaseUrl` in `tests/API.Tests/appsettings.json` or use the `TEST_API_BASE_URL` environment variable:
+
+```powershell
+$env:TEST_API_BASE_URL = "https://api.example.com"
+dotnet test tests/API.Tests/API.Tests.csproj --no-build
+```
+
+The default configuration points to `https://jsonplaceholder.typicode.com` for demonstration purposes.
+
+## Integration Test Configuration
+
+Configure database connection and service URLs in `tests/Integration.Tests/appsettings.json`:
+
+```json
+{
+  "Database": {
+    "ConnectionString": "Server=localhost;Database=TestDB;..."
+  },
+  "Services": {
+    "AuthServiceUrl": "http://localhost:5001",
+    "OrderServiceUrl": "http://localhost:5002"
+  }
+}
+```
+
+Or use environment variables:
+- `TEST_DB_CONNECTION_STRING` for database connection
+- Service URLs are read from configuration
+
+## Running Tests by Layer
+
+Run tests by specific layer using the `@Layer` tag:
+
+```powershell
+# UI tests only
+dotnet test --filter "TestCategory=Ui"
+
+# API tests only
+dotnet test --filter "TestCategory=Api"
+
+# Integration tests only
+dotnet test --filter "TestCategory=Integration"
+
+# All smoke tests across all layers
+dotnet test --filter "TestCategory=Smoke"
+
+# High risk tests only
+dotnet test --filter "FullyQualifiedName~Risk:High"
+```
 
 ## Metadata convention
 
@@ -71,6 +145,52 @@ Start the stdio host from the repository:
 dotnet run --project agent/Test.AgentGateway.Cli
 ```
 
-Send one JSON object per line. The only available tools are `discover_tests`, `run_tests`, `get_test_result`, `get_test_evidence`, and `analyze_test_failure`. `run_tests` accepts the allowlist ID `ui-tests`; it never accepts a command or project path.
+Send one JSON object per line. The available tools are `discover_tests`, `run_tests`, `get_test_result`, `get_test_evidence`, `analyze_test_failure`, `compare_analyzers`, `get_failure_history`, and `analyze_failure_patterns`. `run_tests` accepts the allowlist IDs: `ui-tests`, `api-tests`, or `integration-tests`; it never accepts a command or project path.
+
+### LLM-Powered Failure Analysis 🧠 NEW!
+
+Enable AI-powered intelligent failure analysis:
+
+1. **Set API Key:**
+```powershell
+$env:LLM_API_KEY = "your-openai-key"
+```
+
+2. **Enable in Configuration:**
+Edit `agent/Test.AgentGateway.Cli/appsettings.json`:
+```json
+{
+  "LlmAnalyzer": {
+    "Enabled": true,
+    "Provider": "OpenAI",
+    "Model": "gpt-4o-mini"
+  }
+}
+```
+
+3. **Analyze Failures:**
+```json
+{"tool":"analyze_test_failure","arguments":{"runId":"<runId>","testId":"<testId>"}}
+{"tool":"compare_analyzers","arguments":{"runId":"<runId>","testId":"<testId>"}}
+{"tool":"analyze_failure_patterns","arguments":{"testId":"<testId>"}}
+```
+
+**Features:**
+- 🎯 Deep root cause analysis with AI
+- 💡 Actionable fix recommendations
+- 📈 Historical pattern detection
+- 🔍 Flaky test identification
+- 🔄 Comparative analysis (Deterministic vs LLM)
+
+See **[LLM Failure Analysis Guide](docs/llm-failure-analysis-guide.md)** for complete documentation.
+
+### Example Usage
+
+```json
+{"schemaVersion":"1.0","id":"1","tool":"discover_tests","arguments":{}}
+{"schemaVersion":"1.0","id":"2","tool":"run_tests","arguments":{"projectId":"api-tests","categories":["Smoke"],"timeout":"00:05:00"}}
+{"schemaVersion":"1.0","id":"3","tool":"analyze_test_failure","arguments":{"runId":"<runId>","testId":"<testId>"}}
+{"schemaVersion":"1.0","id":"4","tool":"compare_analyzers","arguments":{"runId":"<runId>","testId":"<testId>"}}
+```
 
 An MCP package is intentionally not required in P3. The JSON-lines host has the same narrow, versioned request/response semantics without coupling contracts to a changing SDK. It can be adapted to MCP later without changing the domain interfaces.

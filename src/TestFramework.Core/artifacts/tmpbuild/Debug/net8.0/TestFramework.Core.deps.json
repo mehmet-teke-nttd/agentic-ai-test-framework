@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "TestFramework.Core/1.0.0": {
+        "dependencies": {
+          "Test.Agent.Contracts": "1.0.0"
+        },
+        "runtime": {
+          "TestFramework.Core.dll": {}
+        }
+      },
+      "Test.Agent.Contracts/1.0.0": {
+        "runtime": {
+          "Test.Agent.Contracts.dll": {
+            "assemblyVersion": "1.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "TestFramework.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Test.Agent.Contracts/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

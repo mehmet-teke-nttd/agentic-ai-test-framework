@@ -1,7 +1,14 @@
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Test.Agent.Contracts;
 using Test.AgentGateway;
 using TestFramework.Core;
+
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .Build();
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 var options = new GatewayOptions
@@ -10,12 +17,47 @@ var options = new GatewayOptions
     EvidenceRoot = Path.Combine(root, "Evidence"),
     AllowedProjects = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        ["ui-tests"] = Path.Combine("tests", "UI.Tests", "UI.Tests.csproj")
+        ["ui-tests"] = Path.Combine("tests", "UI.Tests", "UI.Tests.csproj"),
+        ["api-tests"] = Path.Combine("tests", "API.Tests", "API.Tests.csproj"),
+        ["integration-tests"] = Path.Combine("tests", "Integration.Tests", "Integration.Tests.csproj")
     }
 };
 var gateway = new SafeTestGateway(options);
 var discovery = new FeatureFileDiscovery(root);
-var analyzer = new DeterministicFailureAnalyzer();
+var historyTracker = new HistoricalFailureTracker(options.EvidenceRoot);
+
+// Configure failure analyzer based on settings
+IFailureAnalyzer analyzer;
+var llmEnabled = configuration.GetValue<bool>("LlmAnalyzer:Enabled");
+if (llmEnabled)
+{
+    var llmOptions = new LlmFailureAnalyzerOptions
+    {
+        Provider = configuration["LlmAnalyzer:Provider"] ?? "OpenAI",
+        ApiKey = Environment.GetEnvironmentVariable("LLM_API_KEY")
+            ?? configuration["LlmAnalyzer:ApiKey"]
+            ?? throw new InvalidOperationException("LLM API key not configured. Set LLM_API_KEY environment variable or LlmAnalyzer:ApiKey in appsettings.json"),
+        Endpoint = configuration["AzureOpenAI:Endpoint"],
+        Model = configuration["LlmAnalyzer:Model"] ?? "gpt-4o-mini",
+        MaxTokens = configuration.GetValue<int>("LlmAnalyzer:MaxTokens", 2000),
+        Temperature = configuration.GetValue<double>("LlmAnalyzer:Temperature", 0.3),
+        Timeout = TimeSpan.TryParse(configuration["LlmAnalyzer:Timeout"], out var timeout)
+            ? timeout
+            : TimeSpan.FromSeconds(30),
+        IncludeScreenshots = configuration.GetValue<bool>("LlmAnalyzer:IncludeScreenshots", true),
+        IncludeStackTraces = configuration.GetValue<bool>("LlmAnalyzer:IncludeStackTraces", true),
+        IncludeHistoricalData = configuration.GetValue<bool>("LlmAnalyzer:IncludeHistoricalData", false)
+    };
+    
+    analyzer = new LlmFailureAnalyzer(llmOptions, new DeterministicFailureAnalyzer());
+    Console.Error.WriteLine($"[INFO] LLM Failure Analyzer enabled: {llmOptions.Provider} ({llmOptions.Model})");
+}
+else
+{
+    analyzer = new DeterministicFailureAnalyzer();
+    Console.Error.WriteLine("[INFO] Using deterministic failure analyzer");
+}
+
 var wireJson = new JsonSerializerOptions(ContractJson.Options) { WriteIndented = false };
 
 while (await Console.In.ReadLineAsync() is { } line)
@@ -45,8 +87,11 @@ async Task<ToolResponse> DispatchAsync(ToolRequest request)
         "get_test_result" => await gateway.GetResultAsync(RequiredString(request.Arguments, "runId")),
         "get_test_evidence" => await gateway.GetEvidenceAsync(RequiredString(request.Arguments, "runId")),
         "analyze_test_failure" => await AnalyzeAsync(request.Arguments),
+        "compare_analyzers" => await CompareAnalyzersAsync(request.Arguments),
+        "get_failure_history" => await GetFailureHistoryAsync(request.Arguments),
+        "analyze_failure_patterns" => await AnalyzeFailurePatternsAsync(request.Arguments),
         _ => throw new ArgumentException(
-            "Unknown tool. Allowed tools: discover_tests, run_tests, get_test_result, get_test_evidence, analyze_test_failure.")
+            "Unknown tool. Allowed tools: discover_tests, run_tests, get_test_result, get_test_evidence, analyze_test_failure, compare_analyzers, get_failure_history, analyze_failure_patterns.")
     };
     return new ToolResponse(request.Id, true, result, null);
 }
@@ -72,7 +117,61 @@ async Task<FailureAnalysis> AnalyzeAsync(JsonElement arguments)
     var result = await gateway.GetResultAsync(runId)
         ?? throw new ArgumentException($"Run '{runId}' was not found.");
     var evidence = await gateway.GetEvidenceAsync(runId);
-    return await analyzer.AnalyzeAsync(result, testId, evidence);
+    var analysis = await analyzer.AnalyzeAsync(result, testId, evidence);
+    
+    // Record in history if it's a failure
+    if (result.Outcome == TestOutcome.Failed)
+    {
+        await historyTracker.RecordFailureAsync(testId, analysis, result);
+    }
+    
+    return analysis;
+}
+
+async Task<ComparativeAnalysisResult> CompareAnalyzersAsync(JsonElement arguments)
+{
+    var runId = RequiredString(arguments, "runId");
+    var testId = RequiredString(arguments, "testId");
+    var result = await gateway.GetResultAsync(runId)
+        ?? throw new ArgumentException($"Run '{runId}' was not found.");
+    var evidence = await gateway.GetEvidenceAsync(runId);
+
+    // Run both analyzers
+    var deterministicAnalyzer = new DeterministicFailureAnalyzer();
+    var deterministicAnalysis = await deterministicAnalyzer.AnalyzeAsync(result, testId, evidence);
+
+    FailureAnalysis llmAnalysis;
+    if (llmEnabled)
+    {
+        // If LLM is enabled, use it; otherwise create a placeholder
+        llmAnalysis = await analyzer.AnalyzeAsync(result, testId, evidence);
+    }
+    else
+    {
+        llmAnalysis = new FailureAnalysis
+        {
+            RunId = runId,
+            TestId = testId,
+            Classification = FailureClassification.Unknown,
+            Confidence = 0.0,
+            Reasons = ["LLM analyzer not enabled. Enable in appsettings.json and provide API key."],
+            CitedEvidence = []
+        };
+    }
+
+    return FailureAnalysisComparator.Compare(deterministicAnalysis, llmAnalysis, runId, testId);
+}
+
+async Task<List<HistoricalFailureEntry>> GetFailureHistoryAsync(JsonElement arguments)
+{
+    var testId = RequiredString(arguments, "testId");
+    return await historyTracker.LoadHistoryAsync(testId);
+}
+
+async Task<FailurePatternAnalysis> AnalyzeFailurePatternsAsync(JsonElement arguments)
+{
+    var testId = RequiredString(arguments, "testId");
+    return await historyTracker.AnalyzePatternsAsync(testId);
 }
 
 static T Deserialize<T>(JsonElement element) =>
