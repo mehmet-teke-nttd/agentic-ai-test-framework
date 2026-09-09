@@ -10,6 +10,7 @@ First usable release (P0-P3) + **LLM-powered failure analysis (P4)** of a .NET 8
 - 🔄 **Dual Analyzers**: Deterministic + LLM with comparative analysis
 - 🎯 **Actionable Insights**: Fix recommendations, not just classifications
 - 🌐 **Multi-Provider**: OpenAI, Azure OpenAI, Anthropic support
+- 🤖 **SubAgent Integration**: Cursor SubAgents for code review, exploration, and CI debugging 🚀 NEW!
 
 ## Projects
 
@@ -25,16 +26,40 @@ First usable release (P0-P3) + **LLM-powered failure analysis (P4)** of a .NET 8
 
 See [architecture](docs/architecture.md), [security model](docs/security.md), [agent protocol](docs/agent-protocol.md), and [test layers guide](docs/test-layers-guide.md).
 
+## 🎨 Page Object Model Pattern
+
+**This framework strictly follows the Page Object Model (POM) pattern for UI tests.**
+
+- ✅ All UI interactions encapsulated in Page Objects (`tests/UI.Tests/PageObjects/`)
+- ✅ Step definitions contain NO direct Playwright calls
+- ✅ Selectors centralized and maintainable
+- ✅ Clear separation between test logic and UI interaction
+
+**For AI Assistants:**
+- **[AGENTS.md](.cursor/rules/AGENTS.md)** - Mandatory guidelines for AI code generation
+- **[RULE.md](.cursor/rules/RULE.md)** - Page Object Model implementation rules
+- **[REFACTORING_COMPLETE.md](REFACTORING_COMPLETE.md)** - Real refactoring example
+
 ## 📚 Documentation
 
-- **[Test Layers Guide](docs/test-layers-guide.md)** - Complete guide to UI/API/Integration testing
-- **[LLM Failure Analysis Guide](docs/llm-failure-analysis-guide.md)** - AI-powered failure analysis 🧠 NEW!
-- **[LLM Analysis Demo](docs/LLM_ANALYSIS_DEMO.md)** - Live examples and workflows
-- **[Agent Protocol](docs/agent-protocol.md)** - Tool reference and JSON-lines protocol
+### Core Framework
 - **[Architecture](docs/architecture.md)** - System design and dependency flow
+- **[Test Layers Guide](docs/test-layers-guide.md)** - Complete guide to UI/API/Integration testing
+- **[Agent Protocol](docs/agent-protocol.md)** - Tool reference and JSON-lines protocol
 - **[Security Model](docs/security.md)** - Trust boundaries and controls
-- **[API/Integration Implementation](docs/IMPLEMENTATION_SUMMARY.md)** - Test pyramid details
+
+### AI-Powered Features 🧠
+- **[LLM Failure Analysis Guide](docs/llm-failure-analysis-guide.md)** - AI-powered failure analysis
+- **[LLM Analysis Demo](docs/LLM_ANALYSIS_DEMO.md)** - Live examples and workflows
 - **[LLM Implementation](docs/IMPLEMENTATION_SUMMARY_LLM.md)** - AI analysis details
+
+### Development Workflow 🚀 NEW!
+- **[SubAgent Integration Guide](docs/subagent-integration-guide.md)** - Cursor SubAgent integration
+- **[SubAgent Workflows](docs/subagent-workflows.md)** - Practical workflow examples
+- **[SubAgent Quick Reference](docs/SUBAGENT_QUICKREF.md)** - Fast command lookup
+
+### Implementation Details
+- **[API/Integration Implementation](docs/IMPLEMENTATION_SUMMARY.md)** - Test pyramid details
 
 ## Prerequisites and verification
 
