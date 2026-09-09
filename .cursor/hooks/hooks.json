@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "hooks": [
+    {
+      "id": "pre-commit-pom-review",
+      "name": "Pre-Commit POM Review",
+      "description": "Automatically review UI test changes for POM violations before commit",
+      "trigger": "manual",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "subagentType": "bugbot",
+        "prompt": "Review uncommitted changes in tests/UI.Tests/ for Page Object Model violations. Check:\n1. No direct Playwright calls in *Steps.cs files\n2. All Page interactions in *Page.cs files\n3. Naming convention: {Feature}.feature → {Feature}Steps.cs → {Feature}Page.cs\n4. No hardcoded selectors in step definitions\n5. Assertions in steps, not Page Objects\n\nReport violations with file names and line numbers."
+      }
+    },
+    {
+      "id": "explore-test-coverage",
+      "name": "Explore Test Coverage",
+      "description": "Generate comprehensive test inventory report",
+      "trigger": "manual",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "subagentType": "explore",
+        "prompt": "Analyze test framework structure. Report:\n1. Test count by layer (UI, API, Integration)\n2. Smoke vs Regression test distribution\n3. Risk level distribution (Low/Medium/High/Critical)\n4. POM compliance status for UI tests\n5. Any naming convention violations\n6. Missing Page Objects\n7. Framework health score (1-10)\n\nProvide structured summary with recommendations."
+      }
+    },
+    {
+      "id": "verify-framework-compliance",
+      "name": "Verify Framework Compliance",
+      "description": "Check all tests comply with framework guidelines",
+      "trigger": "manual",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "subagentType": "explore",
+        "prompt": "Verify framework compliance across all test layers:\n\nUI Tests (tests/UI.Tests/):\n- POM pattern: All Playwright calls in Page Objects\n- Naming: {Feature}.feature → {Feature}Steps.cs → {Feature}Page.cs\n- Metadata: @Category, @Risk, @Layer, @Feature tags present\n\nAPI Tests (tests/API.Tests/):\n- HttpClient usage in steps\n- Proper error handling\n- Metadata tags present\n\nIntegration Tests (tests/Integration.Tests/):\n- Database tests properly isolated\n- Service integration tests use mocks/stubs\n- Metadata tags present\n\nReport violations with severity (Critical/High/Medium/Low) and recommended fixes."
+      }
+    },
+    {
+      "id": "find-test-examples",
+      "name": "Find Test Examples",
+      "description": "Find examples of tests matching a pattern",
+      "trigger": "manual",
+      "enabled": true,
+      "action": {
+        "type": "agent",
+        "subagentType": "explore",
+        "prompt": "Search for test examples. When user provides a pattern (e.g., 'login tests', 'API tests', 'button interactions'), find:\n1. Matching .feature files\n2. Corresponding step definitions\n3. Page Objects (for UI tests)\n4. Show file paths and key scenarios\n5. Highlight patterns to follow\n\nFormat as a learning guide for developers."
+      }
+    }
+  ]
+}

@@ -27,6 +27,19 @@ The contracts intentionally contain no Playwright, ReqnRoll, NUnit, process, Azu
 
 The P3 analyzer uses ordered, documented signatures for environment, assertion/product, test/locator, and infrastructure failures. Confidence is conservative. No recognized signature yields `Unknown` with zero confidence. Evidence paths are citations, not hidden model context.
 
+## P5 — Development workflow automation (Cursor SubAgents)
+
+Cursor SubAgents integrate with the development workflow for pre-commit quality checks, codebase exploration, and CI debugging. SubAgents complement Test.AgentGateway:
+
+- **Test.AgentGateway** (runtime) — execute tests, analyze failures, track history
+- **Cursor SubAgents** (development) — explore code, review changes, enforce patterns
+
+Available SubAgents: `explore` (code discovery), `bugbot` (quality review), `security-review` (security audit), `ci-investigator` (pipeline debugging), `generalPurpose` (multi-step tasks).
+
+Automated workflows via `.cursor/hooks/hooks.json` provide pre-commit POM reviews, test coverage exploration, and framework compliance verification.
+
+See [SubAgent Integration Guide](subagent-integration-guide.md) and [SubAgent Workflows](subagent-workflows.md) for complete documentation.
+
 ## Later phases
 
-Future work can add an MCP adapter, Azure DevOps read adapters, policy-based project registration, richer attachment correlation, and an opt-in LLM implementation behind `IFailureAnalyzer`. Repository mutation and work-item mutation remain outside this release.
+Future work can add an MCP adapter, Azure DevOps read adapters, policy-based project registration, richer attachment correlation, and SubAgent orchestration for multi-agent workflows. Repository mutation and work-item mutation remain outside this release.
